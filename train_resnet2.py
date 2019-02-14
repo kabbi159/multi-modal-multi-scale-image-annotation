@@ -1,14 +1,15 @@
 import tensorflow as tf
 import numpy as np
 from datetime import datetime
-from network import ms_cnn, mlp, multi_class_classification_model, label_quantity_prediction_model
+from network import mlp, multi_class_classification_model, label_quantity_prediction_model
 from nuswide_datagenerator import ImageDataGenerator
 from tensorflow.contrib.slim.nets import resnet_v1
 from tensorflow.contrib.framework import get_variables_to_restore, assign_from_checkpoint_fn
 from tensorflow.contrib import slim
 from multiscale_resnet import multiscale_resnet101
-import os
 
+# To use on multi GPU
+# import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 # Learning parameters
@@ -69,11 +70,6 @@ score = multi_class_classification_model(refined_features, num_classes)
 k = label_quantity_prediction_model(refined_features, keep_prob)
 k = tf.reshape(k, shape=[batch_size])
 
-# for v in tf.trainable_variables():
-#     print(v)
-#
-# exit()
-
 var_list0 = [v for v in tf.trainable_variables() if v.name.split('/')[0][0:3] in train_layers0]
 var_list1_1 = [v for v in tf.trainable_variables() if v.name.split('/')[0][0:3] in train_layers1_1]
 var_list1_2 = [v for v in tf.trainable_variables() if v.name.split('/')[0][0:3] in train_layers1_2]
@@ -81,13 +77,9 @@ var_list2_1 = [v for v in tf.trainable_variables() if v.name.split('/')[0][0:3] 
 var_list2_2 = [v for v in tf.trainable_variables() if v.name.split('/')[0][0:3] in train_layers2_2]
 
 with tf.name_scope('loss'):
-    # resnet_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=y, logits=net_logit)
     resnet_loss = tf.reduce_mean(tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=net_logit, labels=y), 1))
-    # fusion_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=y, logits=fusion_logit)
     fusion_loss = tf.reduce_mean(tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=fusion_logit, labels=y), 1))
-    # mlp_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=y, logits=textual_logit)
     mlp_loss = tf.reduce_mean(tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=textual_logit, labels=y), 1))
-    # cross_entropy_loss = tf.reduce_mean(tf.losses.sigmoid_cross_entropy(multi_class_labels=y, logits=score))
     cross_entropy_loss = tf.reduce_mean(tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=score, labels=y), 1))
     mean_squared_error_loss = tf.reduce_mean(tf.square(q-k))
 
@@ -182,9 +174,7 @@ with tf.Session() as sess:
             if (step % 100) == 0:
                 print('Step {} training loss (resnet loss):'.format(step), _resnet_loss)
 
-
-
-    # fusion training +
+    # fusion layer + textual feature MLP training
     for epoch in range(80):
 
         print("{} Epoch number: {}".format(datetime.now(), epoch+1))
@@ -199,8 +189,7 @@ with tf.Session() as sess:
             if(step % 100) == 0:
                 print('Step {} training loss (fusion loss):'.format(step), _fusion_loss, '(textual loss):', _mlp_loss)
 
-
-
+    # FC layer for multi-class classification and label quantity training
     for epoch in range(num_epochs):
         print("{} Epoch number: {}".format(datetime.now(), epoch + 1))
 
