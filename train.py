@@ -1,3 +1,16 @@
+'''
+Name: Jiwung Hyun
+Date: 2019-02-25
+
+Paper:
+(https://arxiv.org/abs/1709.01220)
+Author: Yulei Niu, Zhiwu Lu, Ji-Rong Wen, Tao Xiang, Shih-Fu Chang
+
+A Tensorflow Implementation on Multi-Modal-Multi-Scale Image Annotation.
+This is not official implementation on this paper.
+I upload this code for studying by myself.
+'''
+
 import tensorflow as tf
 import numpy as np
 from datetime import datetime
