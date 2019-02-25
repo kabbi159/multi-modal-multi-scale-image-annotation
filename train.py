@@ -189,11 +189,12 @@ with tf.Session() as sess:
 
         for step in range(train_batches_per_epoch):
             img_batch, label_batch, tag_batch = sess.run(next_batch)
-            _tr0, _resnet_loss = sess.run([train_op0, resnet_loss],
-                                         feed_dict={img: img_batch, tag: tag_batch, y: label_batch,
-                                                    keep_prob: dropout_rate, is_training: True})
+            _tr0 = sess.run(train_op0, feed_dict={img: img_batch, tag: tag_batch, y: label_batch,
+                                                  keep_prob: dropout_rate, is_training: True})
 
             if (step % 200) == 0:
+                _resnet_loss = sess.run(resnet_loss, feed_dict={img: img_batch, tag: tag_batch, y: label_batch,
+                                                                keep_prob: dropout_rate, is_training: False})
                 print('Step {} training loss (resnet loss):'.format(step), _resnet_loss)
 
     # fusion layer + textual feature MLP training
@@ -207,12 +208,15 @@ with tf.Session() as sess:
         for step in range(train_batches_per_epoch):
             img_batch, label_batch, tag_batch = sess.run(next_batch)
 
-            _tr1_1, _tr1_2, _fusion_loss, _mlp_loss = sess.run([train_op1_1, train_op1_2, fusion_loss, mlp_loss],
-                                                               feed_dict={img: img_batch, tag: tag_batch,
-                                                                          y: label_batch, keep_prob: dropout_rate,
-                                                                          is_training: True})
+            _tr1_1, _tr1_2 = sess.run([train_op1_1, train_op1_2], feed_dict={img: img_batch, tag: tag_batch,
+                                                                             y: label_batch, keep_prob: dropout_rate,
+                                                                             is_training: True})
 
             if(step % 200) == 0:
+                _fusion_loss, _mlp_loss = sess.run([fusion_loss, mlp_loss], feed_dict={img: img_batch, tag: tag_batch,
+                                                                                       y: label_batch, keep_prob:
+                                                                                           dropout_rate,
+                                                                                       is_training: False})
                 print('Step {} training loss (fusion loss):'.format(step), _fusion_loss, '(textual loss):', _mlp_loss)
 
     # FC layer for multi-class classification and label quantity training
@@ -227,14 +231,17 @@ with tf.Session() as sess:
             # get next batch of data
             img_batch, label_batch, tag_batch = sess.run(next_batch)
 
-            _tr2_1, _tr2_2, tr_ce_loss, tr_mse_loss = sess.run([train_op2_1, train_op2_2, cross_entropy_loss,
-                                                                mean_squared_error_loss],
+            _tr2_1, _tr2_2 = sess.run([train_op2_1, train_op2_2],
                                                                feed_dict={img: img_batch, tag: tag_batch,
                                                                           y: label_batch, keep_prob: dropout_rate,
                                                                           is_training: True})
 
             if (step % 200) == 0:
-                print('Step {} training loss (sigmoid-cross-entropy):'.format(step), tr_ce_loss, '(mean-squared-error):', tr_mse_loss)
+                tr_ce_loss, tr_mse_loss = sess.run([cross_entropy_loss, mean_squared_error_loss],
+                                                   feed_dict={img: img_batch, tag: tag_batch, y: label_batch,
+                                                              keep_prob: dropout_rate, is_training: False})
+                print('Step {} training loss (sigmoid-cross-entropy):'.format(step), tr_ce_loss,
+                      '(mean-squared-error):', tr_mse_loss)
 
         # Validate the model on the entire validation set
         print("{} Start validation".format(datetime.now()))
