@@ -1,10 +1,14 @@
-# Created on Wed May 31 14:48:46 2017
-# Modified on Jan 15 2018
-#
-# @author: Frederik Kratzert
-# @modified: Jiwung Hyun
+'''
+Created on Wed May 31 14:48:46 2017
+Modified on Jan 15 2018
+Remodified on 2019-02-20
 
-"""Containes a helper class for image input pipelines in tensorflow."""
+@author: Frederik Kratzert
+@modified: Jiwung Hyun
+
+Containes a helper class for image input pipelines in tensorflow.
+I modified this datagenerator class on https://github.com/kratzert/finetune_alexnet_with_tensorflow/blob/master/datagenerator.py
+'''
 
 import tensorflow as tf
 import numpy as np
@@ -16,7 +20,7 @@ from tensorflow.python.framework.ops import convert_to_tensor
 
 IMAGENET_MEAN = tf.constant([123.68, 116.779, 103.939], dtype=tf.float32)
 
-nus_wide_path = "D:/nus-wide" # "mnt/hdd0/nus-wide"
+nus_wide_path = "/media/jiwunghyun/DATA/nus-wide" # "mnt/hdd0/nus-wide"
 img_list_path = os.path.join(nus_wide_path, "ImageList")
 tags_path = os.path.join(nus_wide_path, "NUS_WID_Tags")
 
@@ -35,8 +39,7 @@ class ImageDataGenerator(object):
         this class will create TensrFlow datasets, that can be used to train
         e.g. a convolutional neural network.
         Args:
-            txt_file: Path to the text file.
-            mode: Either 'training' or 'validation'. Depending on this value,
+            mode: Either 'training' or 'inference'. Depending on this value,
                 different parsing functions will be used.
             batch_size: Number of images per batch.
             num_classes: Number of classes in the dataset.
@@ -49,6 +52,26 @@ class ImageDataGenerator(object):
         """
 
         self.num_classes = num_classes
+        self.duplicated_tag_list = []
+
+        fp = open("/media/jiwunghyun/DATA/nus-wide/Concepts81.txt", 'r')
+        tag_list = []
+        for i in range(81):
+            a = fp.readline().split('\n')[0]
+            tag_list.append(a)
+        fp.close()
+
+        fp2 = open("/media/jiwunghyun/DATA/nus-wide/NUS_WID_Tags/TagList1k.txt", 'r')
+        tag1000_list = []
+        for i in range(1000):
+            a = fp2.readline().split('\n')[0]
+            tag1000_list.append(a)
+        fp2.close()
+
+        for i in range(len(tag1000_list)):
+            for j in range(len(tag_list)):
+                if tag1000_list[i] == tag_list[j]:
+                    self.duplicated_tag_list.append(i)
 
         # retrieve the data from the text file
         if mode == 'training':
@@ -111,6 +134,13 @@ class ImageDataGenerator(object):
             noisy_tag_line = noisy_tag.readline().split('\t'.encode())
             noisy_tag_line = [int(i) for i in noisy_tag_line[:-1]]
 
+            new_noisy_tag_line = []
+            for i in range(1000):
+                if i in self.duplicated_tag_list:
+                    pass
+                else:
+                    new_noisy_tag_line.append(noisy_tag_line[i])
+
             line = training_img_list.readline()
             line = line.split('\\')
             line = line[0] + '/' + line[1]
@@ -118,7 +148,7 @@ class ImageDataGenerator(object):
             line = os.path.join(nus_wide_path, "image/" + line[:-1])
             if os.path.exists(line) and sum(tag_line) != 0:  # and sum(tag_line) != 0
                 self.labels.append(tag_line)
-                self.noisy_tags.append(noisy_tag_line)
+                self.noisy_tags.append(new_noisy_tag_line)
                 self.img_paths.append(line)
 
         print("train setting end")
@@ -145,6 +175,13 @@ class ImageDataGenerator(object):
             noisy_tag_line = noisy_tag.readline().split('\t'.encode())
             noisy_tag_line = [int(i) for i in noisy_tag_line[:-1]]
 
+            new_noisy_tag_line = []
+            for i in range(1000):
+                if i in self.duplicated_tag_list:
+                    pass
+                else:
+                    new_noisy_tag_line.append(noisy_tag_line[i])
+
             line = test_img_list.readline()
             line = line.split('\\')
             line = line[0] + '/' + line[1]
@@ -153,7 +190,7 @@ class ImageDataGenerator(object):
             if os.path.exists(line) and sum(tag_line) != 0:  # and sum(tag_line) != 0
                 # print(line)
                 self.labels.append(tag_line)
-                self.noisy_tags.append(noisy_tag_line)
+                self.noisy_tags.append(new_noisy_tag_line)
                 self.img_paths.append(line)
 
         print("test setting end")
