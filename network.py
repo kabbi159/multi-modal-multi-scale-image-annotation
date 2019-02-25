@@ -1,5 +1,13 @@
+'''
+Name: Jiwung Hyun
+Date: 2018-02-25
+
+Currently ms_cnn function is not used.
+'''
+
 import tensorflow as tf
 from tensorflow.contrib.layers.python.layers.layers import batch_norm
+
 
 def _conv2d(input_layer, kernel_size, num_o, stride, name, biased=False):
     num_x = input_layer.shape[3].value
@@ -22,47 +30,47 @@ def _fully_connected(x, size, name):
         return o
 
 
-
 def _batch_norm(x, name, is_training, activation_fn, trainable=False):
     with tf.variable_scope(name) as scope:
-        o = batch_norm(x, scale=True, activation_fn=activation_fn, is_training=is_training,
+        o = batch_norm(x, decay=0.9997, scale=True, activation_fn=activation_fn, is_training=is_training,
                        trainable=trainable, scope=scope)
         return o
 
-def _conv_block(x, num_o, name):
+def _conv_block(x, num_o, name, is_training):
     o_a = _conv2d(x, 1, num_o/4, 1, name=name+'a')
-    o_a = _batch_norm(o_a, name=name+'a', is_training=False, activation_fn=tf.nn.relu)
+    o_a = _batch_norm(o_a, name=name+'a', is_training=is_training, activation_fn=tf.nn.relu)
     o_b = _conv2d(o_a, 3, num_o/4, 1, name=name+'b')
-    o_b = _batch_norm(o_b, name=name + 'b', is_training=False, activation_fn=tf.nn.relu)
+    o_b = _batch_norm(o_b, name=name + 'b', is_training=is_training, activation_fn=tf.nn.relu)
     o_c = _conv2d(o_b, 1, num_o, 1, name=name+'c')
-    o_c= _batch_norm(o_c, name=name + 'c', is_training=False, activation_fn=None)
+    o_c= _batch_norm(o_c, name=name + 'c', is_training=is_training, activation_fn=None)
     return o_c
 
-def _conv_fusion_block(x, num_o, name, two=False):
+
+def _conv_fusion_block(x, num_o, name, is_training, two=False):
     if two:
         o_a = _conv2d(x, 3, num_o/4, 2, name=name+'a')
-        o_a = _batch_norm(o_a, name=name + 'a', is_training=False, activation_fn=tf.nn.relu)
+        o_a = _batch_norm(o_a, name=name + 'a', is_training=is_training, activation_fn=tf.nn.relu)
     else:
         o_a = _conv2d(x, 3, num_o/2, 2, name=name+'a')
-        o_a = _batch_norm(o_a, name=name + 'a', is_training=False, activation_fn=tf.nn.relu)
+        o_a = _batch_norm(o_a, name=name + 'a', is_training=is_training, activation_fn=tf.nn.relu)
     o_b = _conv2d(o_a, 1, num_o, 1, name=name+'b')
-    o_b = _batch_norm(o_b, name=name + 'b', is_training=False, activation_fn=None)
+    o_b = _batch_norm(o_b, name=name + 'b', is_training=is_training, activation_fn=None)
     return o_b
 
-def ms_cnn(x):
+def ms_cnn(x, is_training):
 
     # conv1
-    conv1 = _conv2d(x, 7, 64, 2, 'conv1')
+    conv1 = _conv2d(x, 7, 64, 2, 'conv1', is_training)
     print("after conv1:", conv1.shape)
 
     # conv2
     outputs = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME')
     for i in range(3):
-        outputs = _conv_block(outputs, 256, 'conv2_'+str(i+1))
+        outputs = _conv_block(outputs, 256, 'conv2_'+str(i+1), is_training)
     print("after conv2:", outputs.shape)
 
     # fusion2
-    fusion2 = _conv_fusion_block(conv1, 256, 'fusion2_', True)
+    fusion2 = _conv_fusion_block(conv1, 256, 'fusion2_', is_training, True)
 
     # conv2 + fusion2
     fusion2 = tf.add(outputs, fusion2)
@@ -71,11 +79,11 @@ def ms_cnn(x):
     # conv3
     outputs = tf.nn.max_pool(outputs, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME')
     for i in range(4):
-        outputs = _conv_block(outputs, 512, 'conv3_'+str(i+1))
+        outputs = _conv_block(outputs, 512, 'conv3_'+str(i+1), is_training)
     print("after conv3:", outputs.shape)
 
     # fusion3
-    fusion3 = _conv_fusion_block(fusion2, 512, 'fusion3_')
+    fusion3 = _conv_fusion_block(fusion2, 512, 'fusion3_', is_training)
 
     # conv3 + fusion3
     fusion3 = tf.add(outputs, fusion3)
@@ -84,11 +92,11 @@ def ms_cnn(x):
     # conv4
     outputs = tf.nn.max_pool(outputs, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME')
     for i in range(23):
-        outputs = _conv_block(outputs, 1024, 'conv4_'+str(i+1))
+        outputs = _conv_block(outputs, 1024, 'conv4_'+str(i+1), is_training)
     print("after conv4:", outputs.shape)
 
     # fusion4
-    fusion4 = _conv_fusion_block(fusion3, 1024, 'fusion4_')
+    fusion4 = _conv_fusion_block(fusion3, 1024, 'fusion4_', is_training)
 
     # conv4 + fusion4
     fusion4 = tf.add(outputs, fusion4)
@@ -97,11 +105,11 @@ def ms_cnn(x):
     # conv5
     outputs = tf.nn.max_pool(outputs, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME')
     for i in range(3):
-        outputs = _conv_block(outputs, 2048, 'conv5_'+str(i+1))
+        outputs = _conv_block(outputs, 2048, 'conv5_'+str(i+1), is_training)
     print("after conv5:", outputs.shape)
 
     # fusion5
-    fusion5 = _conv_fusion_block(fusion4, 2048, 'fusion5_')
+    fusion5 = _conv_fusion_block(fusion4, 2048, 'fusion5_', is_training)
 
     # conv5 + fusion5
     fusion5 = tf.add(outputs, fusion5)
@@ -115,22 +123,23 @@ def ms_cnn(x):
 
     # fc, sigmoid
     fc1 = _fully_connected(flatten, 2048, 'fc1')
-    output = _batch_norm(fc1, 'fc1_bn', is_training=False, activation_fn=None)
+    output = _batch_norm(fc1, 'fc1_bn', is_training=is_training, activation_fn=None)
     print("ms_cnn:", output.shape)
 
     return output
 
-def mlp(x, num_classes):
+
+def mlp(x, num_classes, is_training):
     with tf.name_scope('MLPwithBN'):
         layer_1 = _fully_connected(x, 2048, 'layer_1')
         print("layer_1:",layer_1.shape)
-        layer_1 = _batch_norm(layer_1, 'layer_1_bn', is_training=False, activation_fn=tf.nn.relu)
+        layer_1 = _batch_norm(layer_1, 'layer_1_bn', is_training=is_training, activation_fn=tf.nn.relu)
         layer_2 = _fully_connected(layer_1, 2048, 'layer_2')
         print("layer_2:", layer_2.shape)
-        layer_2 = _batch_norm(layer_2, 'layer_2_bn', is_training=False, activation_fn=tf.nn.relu)
+        layer_2 = _batch_norm(layer_2, 'layer_2_bn', is_training=is_training, activation_fn=tf.nn.relu)
 
         fc1 = _fully_connected(layer_2, num_classes, 'layer_logit')
-        logit = _batch_norm(fc1, 'layer_logit_bn', is_training=False, activation_fn=None)
+        logit = _batch_norm(fc1, 'layer_logit_bn', is_training=is_training, activation_fn=None)
         return layer_2, logit
 
 def multi_class_classification_model(x, num_classes):
@@ -150,24 +159,3 @@ def label_quantity_prediction_model(x, keep_prob):
         output = 6 * tf.nn.sigmoid(fc3) + 1
 
         return output
-
-# batch_size = 64
-# num_noisy_tags = 1000
-# num_classes = 81
-# img = tf.placeholder(tf.float32, shape=[batch_size, 224, 224, 3]) # image
-# tag = tf.placeholder(tf.float32, shape=[batch_size, num_noisy_tags]) # noisy tags ex.) [1 0 0 1 0]
-# y = tf.placeholder(tf.float32, shape=[batch_size, num_classes])
-# q = tf.reduce_sum(y, 1) # quantity
-# keep_prob = tf.placeholder(tf.float32)
-#
-# # model
-# visual_features = ms_cnn(img)
-# textual_features = mlp(tag)
-# refined_features = tf.concat([visual_features, textual_features], 1)
-# print("refined features:",refined_features.shape)
-#
-# score = multi_class_classification_model(refined_features, num_classes)
-# k = label_quantity_prediction_model(refined_features, keep_prob)
-# print("k:", k.shape)
-# k = tf.reshape(k, shape=[batch_size])
-# print("k:", k.shape)
