@@ -1,4 +1,6 @@
 # multi-modal-multi-scale-image-annotation
-project 2019
+A Tensorflow Implementation on Multi-Modal Multi-Scale Image Annotation. (Not Official)
 
-pretrained resnet101 weight: https://drive.google.com/open?id=191c9ygBoC049OpTEDhKiuAfwNLJJLJoh
+This repo is for studying myself.
+
+pretrained resnet101 weight link is on tf.slim README.md
