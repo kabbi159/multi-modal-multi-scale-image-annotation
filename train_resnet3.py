@@ -6,6 +6,7 @@ from nuswide_datagenerator import ImageDataGenerator
 from tensorflow.contrib.slim.nets import resnet_v1
 from tensorflow.contrib.framework import get_variables_to_restore, assign_from_checkpoint_fn
 from tensorflow.contrib import slim
+from tensorflow.contrib.opt.python.training.weight_decay_optimizers import MomentumWOptimizer
 from multiscale_resnet import multiscale_resnet101
 import os
 
@@ -13,7 +14,8 @@ import os
 # import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
-checkpoint_path = '/home/jiwunghyun/PycharmProjects/multi-modal-multi-scale-image-annotation/checkpoints'
+# checkpoint_path = '/home/jiwunghyun/PycharmProjects/multi-modal-multi-scale-image-annotation/checkpoints'
+checkpoint_path = '/mnt/ssd0/woong/project2019_1/checkpoints'
 
 # Learning parameters
 learning_rate0 = 0.0005
@@ -59,6 +61,7 @@ tag = tf.placeholder(tf.float32, shape=[batch_size, num_noisy_tags])  # noisy ta
 y = tf.placeholder(tf.float32, shape=[batch_size, num_classes])
 q = tf.reduce_sum(y, 1)  # quantity
 keep_prob = tf.placeholder(tf.float32)
+is_training = tf.placeholder(tf.bool)
 
 # model
 # resnet_v1 101
@@ -71,8 +74,8 @@ variables_to_restore = get_variables_to_restore(exclude=['resnet_v1_101/logits',
 init_fn = assign_from_checkpoint_fn('resnet_v1_101.ckpt', variables_to_restore)
 
 # multiscale resnet_v1 101
-visual_features, fusion_logit = multiscale_resnet101(end_points, num_classes)
-textual_features, textual_logit = mlp(tag, num_classes)
+visual_features, fusion_logit = multiscale_resnet101(end_points, num_classes, is_training)
+textual_features, textual_logit = mlp(tag, num_classes, is_training)
 refined_features = tf.concat([visual_features, textual_features], 1)
 
 # score is prediction score, and k is label quantity
@@ -117,15 +120,15 @@ with tf.name_scope("train"):
     gradients2_1 = list(zip(tf.gradients(cross_entropy_loss, var_list2_1), var_list2_1))
     gradients2_2 = list(zip(tf.gradients(mean_squared_error_loss, var_list2_2), var_list2_2))
 
-    train_op0 = tf.train.MomentumOptimizer(learning_rate=decayed_learning_rate0, momentum=0.9).apply_gradients(
+    train_op0 = MomentumWOptimizer(0.9997, learning_rate=decayed_learning_rate0, momentum=0.9).apply_gradients(
         gradients0)
-    train_op1_1 = tf.train.MomentumOptimizer(learning_rate=decayed_learning_rate1_1, momentum=0.9).apply_gradients(
+    train_op1_1 = MomentumWOptimizer(0.9997, learning_rate=decayed_learning_rate1_1, momentum=0.9).apply_gradients(
         gradients1_1)
-    train_op1_2 = tf.train.MomentumOptimizer(learning_rate=decayed_learning_rate1_2, momentum=0.9).apply_gradients(
+    train_op1_2 = MomentumWOptimizer(0.9997, learning_rate=decayed_learning_rate1_2, momentum=0.9).apply_gradients(
         gradients1_2)
-    train_op2_1 = tf.train.MomentumOptimizer(learning_rate=decayed_learning_rate2_1, momentum=0.9).apply_gradients(
+    train_op2_1 = MomentumWOptimizer(0.9997, learning_rate=decayed_learning_rate2_1, momentum=0.9).apply_gradients(
         gradients2_1)
-    train_op2_2 = tf.train.MomentumOptimizer(learning_rate=decayed_learning_rate2_2, momentum=0.9).apply_gradients(
+    train_op2_2 = MomentumWOptimizer(0.9997, learning_rate=decayed_learning_rate2_2, momentum=0.9).apply_gradients(
         gradients2_2)
 
 # Evaluation op: Accuracy of the model
@@ -175,25 +178,13 @@ with tf.Session() as sess:
             img_batch, label_batch, tag_batch = sess.run(next_batch)
             _tr0, _resnet_loss = sess.run([train_op0, resnet_loss],
                                          feed_dict={img: img_batch, tag: tag_batch, y: label_batch,
-                                                    keep_prob: dropout_rate})
+                                                    keep_prob: dropout_rate, is_training: True})
 
             if (step % 200) == 0:
                 print('Step {} training loss (resnet loss):'.format(step), _resnet_loss)
 
-        # print("{} Saving checkpoint of model...".format(datetime.now()))
-        # # save checkpoint of the model
-        # checkpoint_name = os.path.join(checkpoint_path,
-        #                                'model_epoch' + str(epoch + 1) + '.ckpt')
-        #
-        # save_path = saver.save(sess, checkpoint_name)
-        #
-        # print("{} Model checkpoint saved at {}".format(datetime.now(),
-        #                                                checkpoint_name))
-
-
-
     # fusion layer + textual feature MLP training
-    for epoch in range(15):
+    for epoch in range(20):
 
         print("{} Epoch number: {}".format(datetime.now(), epoch+1))
 
@@ -203,7 +194,10 @@ with tf.Session() as sess:
         for step in range(train_batches_per_epoch):
             img_batch, label_batch, tag_batch = sess.run(next_batch)
 
-            _tr1_1, _tr1_2, _fusion_loss, _mlp_loss = sess.run([train_op1_1, train_op1_2, fusion_loss, mlp_loss], feed_dict={img: img_batch, tag: tag_batch, y: label_batch, keep_prob: dropout_rate})
+            _tr1_1, _tr1_2, _fusion_loss, _mlp_loss = sess.run([train_op1_1, train_op1_2, fusion_loss, mlp_loss],
+                                                               feed_dict={img: img_batch, tag: tag_batch,
+                                                                          y: label_batch, keep_prob: dropout_rate,
+                                                                          is_training: True})
 
             if(step % 200) == 0:
                 print('Step {} training loss (fusion loss):'.format(step), _fusion_loss, '(textual loss):', _mlp_loss)
@@ -220,8 +214,11 @@ with tf.Session() as sess:
             # get next batch of data
             img_batch, label_batch, tag_batch = sess.run(next_batch)
 
-            _tr2_1, _tr2_2, tr_ce_loss, tr_mse_loss = sess.run([train_op2_1, train_op2_2, cross_entropy_loss, mean_squared_error_loss],
-                                                           feed_dict={img: img_batch, tag: tag_batch, y: label_batch, keep_prob: dropout_rate})
+            _tr2_1, _tr2_2, tr_ce_loss, tr_mse_loss = sess.run([train_op2_1, train_op2_2, cross_entropy_loss,
+                                                                mean_squared_error_loss],
+                                                               feed_dict={img: img_batch, tag: tag_batch,
+                                                                          y: label_batch, keep_prob: dropout_rate,
+                                                                          is_training: True})
 
             if (step % 200) == 0:
                 print('Step {} training loss (sigmoid-cross-entropy):'.format(step), tr_ce_loss, '(mean-squared-error):', tr_mse_loss)
@@ -236,7 +233,8 @@ with tf.Session() as sess:
             # test_index = random.randrange(2, 15)
 
             img_batch, label_batch, tag_batch = sess.run(next_batch)
-            _topk = sess.run(topk, feed_dict={img: img_batch, tag: tag_batch, y: label_batch, keep_prob: 1.})
+            _topk = sess.run(topk, feed_dict={img: img_batch, tag: tag_batch,
+                                              y: label_batch, keep_prob: 1., is_training: False})
 
             num_gt += np.sum(label_batch, 0)
             num_pr += np.sum(_topk, 0)
@@ -260,7 +258,7 @@ with tf.Session() as sess:
         print("{} Saving checkpoint of model...".format(datetime.now()))
         # save checkpoint of the model
         checkpoint_name = os.path.join(checkpoint_path,
-                                       'model_epoch' + str(epoch + 1) + '.ckpt')
+                                       'papermodel_epoch' + str(epoch + 1) + '.ckpt')
 
         save_path = saver.save(sess, checkpoint_name)
 
